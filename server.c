@@ -126,14 +126,12 @@ void signal_handler(int sig){
 
 	for(int i = 0; i < MAX_USERS; i++){
 		if(infos[i].status == RUNNING) {
-			pthread_detach(queue_td[i]);
+			rc = pthread_detach(queue_td[i]);
+			error_handler("pthread_detach()", rc);
 			close(infos[i].clint_sock);
 		}
-		pthread_detach(td[i]);
-		pthread_mutex_destroy(&cond_mtd[i]);
-		pthread_cond_destroy(&ctd[i]);
+		rc = pthread_detach(td[i]);
 	}
-	pthread_mutex_destroy(&queue_mtd);
 	exit(1);
 }
 

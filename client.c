@@ -10,6 +10,10 @@
 
 #define MAX_BUFFER_SIZE 1000
 #define SERVER_SIGINT 100
+#define CHATTING_SIGINT 101
+
+#define WRITER_THREAD 1
+#define READER_THREAD 0
 char user_name[MAX_BUFFER_SIZE];
 int serv_sock;
 pthread_t td[2];
@@ -49,14 +53,14 @@ int main(int argc, char* argv[]){
 	strcat(tmp, "]");
 	strcpy(user_name, tmp);
 
-	rc = pthread_create(&td[0], NULL, write_thread, (void*)&serv_sock);
+	rc = pthread_create(&td[WRITER_THREAD], NULL, write_thread, (void*)&serv_sock);
 	error_handler("pthread_create()->write thread", rc);
-	rc = pthread_create(&td[1], NULL, read_thread, (void*)&serv_sock);
+	rc = pthread_create(&td[READER_THREAD], NULL, read_thread, (void*)&serv_sock);
 	error_handler("pthread_create()->read thread", rc);
 
-	rc = pthread_join(td[0], NULL);
+	rc = pthread_join(td[WRITER_THREAD], NULL);
 	error_handler("pthread_join()", rc);
-	rc = pthread_join(td[1], NULL);
+	rc = pthread_join(td[READER_THREAD], NULL);
 	error_handler("pthread_join()", rc);
 
 	return 0;
@@ -81,10 +85,24 @@ void* write_thread(void* arg){
 	int rc;
 	char msg[MAX_BUFFER_SIZE];
 	char tmp[MAX_BUFFER_SIZE];
+	char exit_msg[] = "q";
 
 	while(1){
+		memset(msg, 0, MAX_BUFFER_SIZE);
 		fgets(msg, MAX_BUFFER_SIZE, stdin);
 		msg[strlen(msg) - 1] = '\0';
+		if(strncmp(msg, exit_msg, 1) == 0){
+			while(1){
+				printf("정말 종료하시겠습니까?(Y\\N)\n");				
+				fgets(msg, MAX_BUFFER_SIZE, stdin);
+				msg[strlen(msg) - 1] = '\0';
+
+				if(strcmp(msg, "Y") == 0) signal_handler(CHATTING_SIGINT);
+				else if(strcmp(msg, "N") == 0) break;
+			}
+			continue;
+		}
+
 		strcpy(tmp, user_name);
 		strcat(tmp, " : ");
 		strcat(tmp, msg);
@@ -98,10 +116,20 @@ void signal_handler(int sig){
 	char msg[MAX_BUFFER_SIZE];
 	char exit_msg[MAX_BUFFER_SIZE];
 	int rc;
-	rc = pthread_cancel(td[0]);
-	error_handler("pthread_cancel()", rc);
 	strcpy(exit_msg, "q");
+	if(sig == SERVER_SIGINT || sig == CHATTING_SIGINT){
+		printf(" ==== 채팅 강제 종료 ====\n");
+		write(serv_sock, exit_msg, MAX_BUFFER_SIZE);
+		rc = pthread_detach(td[READER_THREAD]);
+		error_handler("pthread_detach()", rc);
+		rc = pthread_detach(td[WRITER_THREAD]);
+		error_handler("pthread_detach()", rc);
+		close(serv_sock);
+		exit(1);
+	}
 
+	rc = pthread_cancel(td[WRITER_THREAD]);
+	error_handler("pthread_cancel()", rc);
 	if(sig == SIGINT){
 		while(1){
 			printf("채팅을 종료하시겠니까?(Y\\N)\n");
@@ -109,23 +137,15 @@ void signal_handler(int sig){
 			msg[strlen(msg) - 1] = '\0';
 			if(strncmp(msg, "Y", 1) == 0){
 				write(serv_sock, exit_msg, MAX_BUFFER_SIZE);
-				pthread_detach(td[1]);
+				rc = pthread_detach(td[READER_THREAD]);
+				error_handler("pthread_detach()", rc);
 				close(serv_sock);
 				exit(1);
 			}
 			else if(strncmp(msg, "N", 1) == 0) break;
 		}
 	}
-
-	if(sig == SERVER_SIGINT){
-		printf(" ==== 서버 종료 ====\n");
-		write(serv_sock, exit_msg, MAX_BUFFER_SIZE);
-		pthread_detach(td[1]);
-		close(serv_sock);
-		exit(1);
-	}
-
-	rc = pthread_create(&td[0], NULL, write_thread, (void*)&serv_sock);
+	rc = pthread_create(&td[WRITER_THREAD], NULL, write_thread, (void*)&serv_sock);
 	error_handler("pthread_create()->write thread", rc);
 }
 

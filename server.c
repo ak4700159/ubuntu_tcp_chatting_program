@@ -20,12 +20,12 @@ pthread_mutex_t queue_mtd;
 pthread_cond_t ctd[MAX_USERS];
 
 typedef struct Thread_Info{
-	int index;
-	int clint_sock;
-	char user_name[MAX_BUFFER_SIZE];
-	bool status;                 // CONNECTING | WAITING
-	Queue* queue;
-}Thread_Info;
+	int index;						 // -> 스레드마다 고유한 index번호를 가진다.
+	int clint_sock;					 // -> 클라이언트 소켓
+	char user_name[MAX_BUFFER_SIZE]; // -> 클라이언트 사용자 이름
+	bool status;                     // -> 스레드 작동 여부 CONNECTING | WAITING
+	Queue* queue;					 // -> 클라이언트로 msg 보내기 전 큐에 모아둔다.
+}Thread_Info;				
 Thread_Info infos[MAX_USERS];
 
 void init(Thread_Info* infos);
@@ -116,12 +116,24 @@ void init(Thread_Info* infos){
   종료 메시지를 전송한다.*/
 void signal_handler(int sig){
 	char exit_msg[] = "q";
+	int rc;
 	if(sig == SIGINT){
 		for(int i = 0; i < MAX_USERS; i++){
 			if(infos[i].status == RUNNING)
 				write(infos[i].clint_sock, exit_msg, strlen(exit_msg));
 		}
 	}	
+
+	for(int i = 0; i < MAX_USERS; i++){
+		if(infos[i].status == RUNNING) {
+			pthread_detach(queue_td[i]);
+			close(infos[i].clint_sock);
+		}
+		pthread_detach(td[i]);
+		pthread_mutex_destroy(&cond_mtd[i]);
+		pthread_cond_destroy(&ctd[i]);
+	}
+	pthread_mutex_destroy(&queue_mtd);
 	exit(1);
 }
 
@@ -155,6 +167,8 @@ void* queue_thread(void* arg){
 			write(info->clint_sock, queue_msg, strlen(queue_msg));
 		}
 	}
+
+	free(info->queue);
 }
 
 void* server_thread(void* arg){
@@ -172,6 +186,7 @@ void* server_thread(void* arg){
 
 	while(1){
 		pthread_mutex_lock(&cond_mtd[info->index]);
+		// 이 시점에서 시그널을 받기 전까지 대기
 		pthread_cond_wait(&ctd[info->index], &cond_mtd[info->index]);
 
 		// 계속해서 반복되는 과정 속에 메모리 초기화를 적절하게 잘 이뤄줘야 된다.
@@ -198,7 +213,7 @@ void* server_thread(void* arg){
 		strcat(entrance_msg, info->user_name);
 		strcat(entrance_msg, "님이 입장하였습니다. =====");
 		send_other_clints(entrance_msg, info->index);
-		printf("\nClient%d : %s 사용 시작\n", info->index, info->user_name);
+		printf("\nClient%d : %s 사용 시작\n", info->index + 1, info->user_name);
 
 		// 클라이언트가 보낸 메시지를 읽고
 		// 실행 중인 다른 클라이언트들에게 보낸다.
@@ -216,14 +231,16 @@ void* server_thread(void* arg){
 			printf("%s\n", clint_msg);
 			send_other_clints(clint_msg, info->index);
 		}
+
 		// 퇴장 msg 또한 모든 클라이언트에 보낸다.
 		strcat(escape_msg, info->user_name);
 		strcat(escape_msg, "님이 퇴장하였습니다. =====");
 		send_other_clints(escape_msg, info->index);
 
 		// pthread_cancel(queue_td[info->index]) 와 동일
+		// 큐스레드는 자동으로 종료된다.
 		push(info->queue, exit_msg);
-		printf("\nClient%d : %s 사용 종료\n", info->index, info->user_name);
+		printf("\nClient%d : %s 사용 종료\n", info->index + 1, info->user_name);
 		pthread_mutex_unlock(&cond_mtd[info->index]);
 	}
 }

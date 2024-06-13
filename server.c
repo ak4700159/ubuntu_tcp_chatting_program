@@ -38,6 +38,7 @@ void send_other_clints(char* msg, int sender);
 
 
 int main(int argc, char* argv[]){
+	printf("hello docker\n");
 	int serv_sock;
 	int rc;
 	struct sockaddr_in serv_addr;

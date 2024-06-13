@@ -199,7 +199,6 @@ void* server_thread(void* arg){
 
 		// 큐를 동적할당시키고 큐 스레드를 생성한다.
 		info->queue = (Queue*)malloc(sizeof(Queue));
-		//memset(info->queue, 0, sizeof(Queue));
 		queue_init(info->queue);
 		rc = pthread_create(&queue_td[info->index], NULL, queue_thread, (void*)info);
 		pthread_create_handler(rc);

@@ -23,7 +23,7 @@ typedef struct Thread_Info{
 	int index;						 // -> 스레드마다 고유한 index번호를 가진다.
 	int clint_sock;					 // -> 클라이언트 소켓
 	char user_name[MAX_BUFFER_SIZE]; // -> 클라이언트 사용자 이름
-	bool status;                     // -> 스레드 작동 여부 CONNECTING | WAITING
+	bool status;                     // -> 스레드 작동 여부 RUNNING | WAITING
 	Queue* queue;					 // -> 클라이언트로 msg 보내기 전 큐에 모아둔다.
 }Thread_Info;				
 Thread_Info infos[MAX_USERS];
@@ -62,7 +62,7 @@ int main(int argc, char* argv[]){
 	serv_addr.sin_port = htons(atoi(argv[1]));
 
 	// 생성된 소켓에 주소를 바인딩
-	rc=bind(serv_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+	rc = bind(serv_sock, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
 	error_handler("bind()", rc);
 
 	// 최대 몇 개의 클라이언트 요청을 받을 것인지
@@ -90,9 +90,6 @@ int main(int argc, char* argv[]){
 			}
 		}
 	}
-
-	// 서버 할당 해제, 실행될 일이 없다.
-	free(&serv_sock);
 	return 0;
 }
 

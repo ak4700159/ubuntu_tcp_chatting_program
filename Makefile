@@ -2,14 +2,14 @@
 
 
 server : server.o queue.o
-	gcc -o app.out server.o queue.o
+	gcc -o server server.o queue.o
 
 
-server.o : server.c queue.h
-	gcc -c server.c
+server.o : server.c
+	gcc -c server.c -o server.o
 
-queue.o : queue.c queue.h
-	gcc -c queue.c
+queue.o : queue.c
+	gcc -c queue.c -o queue.o
 
 
 clean make:

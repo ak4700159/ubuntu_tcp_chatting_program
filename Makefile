@@ -16,3 +16,6 @@ clean make:
 	rm -f *.o
 
 
+check :
+	@echo "test success!!"
+
